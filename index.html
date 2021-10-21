@@ -98,7 +98,7 @@
                         <input type="password" class="form-control" id="password" placeholder="password">
                         <label for="password">Password Email</label>
                     </div>
-                    <a href="#" onclick="password_show_hide()" class="input-group-text text-danger text-decoration-none px-3">
+                    <a href="#password" onclick="password_show_hide()" class="input-group-text text-danger text-decoration-none px-3">
                       <i class="fas fa-eye" id="show_eye"></i>
                       <i class="fas fa-eye-slash d-none" id="hide_eye"></i>
                     </a>
@@ -118,7 +118,7 @@
               <div class="row g-2">
                 <div class="col-md-4">
                   <div class="form-floating">
-                    <input type="time" class="form-control" id="time" placeholder="22:00" value="02:00:00">
+                    <input type="time" class="form-control" id="time" placeholder="22:00" value="02:00">
                     <label for="time">Hora para los Backups (ej: 22:00)</label>
                   </div>
                 </div>
@@ -134,7 +134,7 @@
                       <option selected value="1d 00:00:00">Diaria</option>
                       <option value="7d 00:00:00">Semanal</option>
                       <option value="14d 00:00:00">Quincenal</option>
-                      <option value="30d 00:00:00">Mensual</option>
+                      <option value="28d 00:00:00">Mensual</option>
                     </select>
                     <label for="frequency">Frecuencia de backup</label>
                   </div>
@@ -147,14 +147,17 @@
 
       <div class="row my-3">
         <div class="col-md-12">
+          <button type="submit" class="btn btn-success" onclick="writeCode()">Generar Codigo</button>
+        </div>
+      </div>
+
+      <div class="row my-3">
+        <div class="col-md-12">
           <div class="card">
             <h5 class="card-header">C&oacute;digo (Aqui aparecer&aacute; el c&oacute;digo que debe copiar y pegar en la Mikrotik)</h5>
             <div class="card-body">
               <div class="row">
-                <div class="col-md-12">
-                  <pre>
-Codigo
-                  </pre>
+                <div class="col-md-12" id="code">
                 </div>
               </div>
             </div>
@@ -167,8 +170,134 @@ Codigo
     </div>
     <script src="js/bootstrap.bundle.min.js"></script>
     <script type="text/javascript">
+      function password_show_hide() {
+        let x = document.getElementById("password");
+        let show_eye = document.getElementById("show_eye");
+        let hide_eye = document.getElementById("hide_eye");
+        hide_eye.classList.remove("d-none");
+        if (x.type === "password") {
+          x.type = "text";
+          show_eye.style.display = "none";
+          hide_eye.style.display = "block";
+        } else {
+          x.type = "password";
+          show_eye.style.display = "block";
+          hide_eye.style.display = "none";
+        }
+      }
       
+      function convert_month(number){
+        let month = ""
+        switch (number) {
+          case 1:
+            month = "Jan"
+            break
+          case 2:
+            month = "Feb"
+            break
+          case 3:
+            month = "Mar"
+            break
+          case 3:
+            month = "Apr"
+            break
+          case 5:
+            month = "May"
+            break
+          case 6:
+            month = "Jun"
+            break
+          case 7:
+            month = "Jul"
+            break
+          case 8:
+            month = "Aug"
+            break
+          case 9:
+            month = "Sep"
+            break
+          case 10:
+            month = "Oct"
+            break
+          case 11:
+            month = "Nov"
+            break
+          case 12:
+            month = "Dec"
+            break
+          default:
+            month = "Jan"
+            break
+        }
+        return month
+      }
 
+      function convert_date_mikrotik(){
+        let date = document.getElementById("date").value
+        const [year, month, day] = date.split('-')
+        const dateObj = {month, day, year}
+        var d = dateObj.day
+        var m = (convert_month(parseInt(dateObj.month)))
+        var y = dateObj.year
+        return(m+"/"+d+"/"+y)
+      }
+
+      document.querySelector("form").addEventListener("submit",function(e){
+        e.preventDefault()
+        let recipient = document.getElementById("recipient").value
+        let subject = document.getElementById("subject").value
+        let host = document.getElementById("host").value
+        let port = document.getElementById("port").value
+        let tls = document.getElementById("tls").value
+        let user = document.getElementById("user").value
+        let password = document.getElementById("password").value
+        let time = document.getElementById("time").value
+        let date = convert_date_mikrotik()
+        let frequency = document.getElementById("frequency").value
+        let HTML = `
+        <pre>
+/system script
+add dont-require-permissions=no name=BackupEmail source="#Configuracion de servidor email\\r\\
+\\n:global host \\"`+host+`\\"\\r\\
+\\n:global port \\"`+port+`\\"\\r\\
+\\n:global tls \\"`+tls+`\\"\\r\\
+\\n:global user \\"`+user+`\\"\\r\\
+\\n:global password \\"`+password+`\\"\\r\\
+\\n:global recipient \\"`+recipient+`\\"\\r\\
+\\n:global subject \\"`+subject+`: \\"\\r\\
+\\n\\r\\
+\\n/tool e-mail\\r\\
+\\nset address=$host from=$user password=$password port=$port start-tls=$tls user=$user\\r\\
+\\n#Script creacion y envio\\r\\
+\\n:log warning \\"Iniciando respaldo\\"\\r\\
+\\n:global sysName value=[/system identity get name];\\r\\
+\\n:global sysDate value=[/system clock get date];\\r\\
+\\n:global sysTime value=[/system clock get time];\\r\\
+\\n:global fileName value=(\\$sysName.\\"-\\".[:pick \\$sysDate 4 6].[:pick \\$s\
+ysDate 0 3].[:pick \\$sysDate 7 11]);\\r\\
+\\n:global fileNameRsc value=(\\$fileName.\\".rsc\\");\\r\\
+\\n/export compact file=\\$fileName;\\r\\
+\\n\\r\\
+\\n:log warning \\"Creando el respaldo...\\"\\r\\
+\\n:delay 5s\\r\\
+\\n:log warning \\"El respaldo esta siendo enviado a su correo\\"\\r\\
+\\n/tool e-mail send to=\\$recipient subject=(\\$subject . \\$fileName) from=\
+\\$user password=\\$password port=\\$port start-tls=\\$tls server=\\$host file=\
+\\$fileNameRsc\\r\\
+\\n:delay 5s\\r\\
+\\n/file remove \\$fileName;\\r\\
+\\n:log warning \\"Envio de respaldo finalizado\\"\\r\\
+\\n"
+:global time "`+time+`:00"
+:global date "`+date+`"
+:global frequency "`+frequency+`"
+/system scheduler
+add interval=$frequency name=BackupEmail on-event=BackupEmail start-date=$date start-time=$time
+        </pre>
+        `;
+        let code = document.getElementById("code")
+        code.innerHTML = HTML
+      })
     </script>
   </body>
 </html>
